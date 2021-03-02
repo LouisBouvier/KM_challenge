@@ -113,3 +113,61 @@ def substring_kernel(X1, X2, k, lambd):
                 K[i, j] = substring_similarity(seq_1, seq_2, k, lambd)
 
     return K
+
+### ================ Ficher Kernel for ungapped HMM =================== ###
+def spectrum_matrix(X,k):
+    X_spect =[]
+    for x in X:
+        l = len(x)
+        spect_x = np.array([x[i:(i + k)] for i in [j for j in range(l-k+1) if j%k==0]])
+        X_spect.append(spect_x.reshape(-1,1))
+    return np.array(X_spect)
+
+def emission_probs(spectrum_matrix,chars):
+    #state = group of k subsequent characters in the sequence
+    # for each state we assign an emission probability of each subsequence (nb occurences)
+    nb_samples = spectrum_matrix.shape[0]
+    nb_states = spectrum_matrix.shape[1]
+    nb_chars = len(chars) # number of possible emissions
+    probs = np.zeros((nb_states,nb_chars))
+    for i in range(nb_states):
+        for j in range(nb_chars):
+            probs[i][j]=np.sum(spectrum_matrix[:,i] == chars[j])/nb_samples
+    return probs
+
+def probs_x(spect,probs,chars):
+    n_states = len(spect)
+    p = []
+    for i in range(n_states):
+        idx = np.where(chars == spect[i])[0][0]
+        p.append(probs[i][idx])
+    return np.array(p)
+
+def log_likelihood(probs_x):
+    ll = 0
+    for p in probs_x:
+        ll+=np.log(p)
+    return ll
+
+def fisher_score(probs_x):
+    eps = 10e-10
+    phi = []
+    for p in probs_x:
+      phi.append(1/(p+eps))
+    return np.array(phi).reshape(-1,1)
+
+def Fisher_kernel(X1,X2,em_probs,k):
+    chars = np.array([''.join(s) for s in product(["A", "T", "G", "C"], repeat=k)])
+    spectrum_matrix_X1 = spectrum_matrix(X1,k)
+    spectrum_matrix_X2 = spectrum_matrix(X2,k)
+    K = np.zeros((X1.shape[0],X2.shape[0]))
+    for i in range(X1.shape[0]):
+      for j in range(X2.shape[0]):
+          spect_x1 = spectrum_matrix_X1[i]
+          spect_x2 = spectrum_matrix_X2[j]
+          probs_x1 = probs_x(spect_x1,em_probs,chars)
+          probs_x2 = probs_x(spect_x2,em_probs,chars)
+          phi_x1 = fisher_score(probs_x1)
+          phi_x2 = fisher_score(probs_x2)
+          K[i][j] = phi_x1.T @ phi_x2
+    return K
