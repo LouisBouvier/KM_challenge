@@ -9,7 +9,7 @@ import cvxpy as cp
 from functools import partial
 from sklearn.base import BaseEstimator, ClassifierMixin
 
-from kernels import Gaussian_kernel, Spectrum_kernel
+from kernels import Gaussian_kernel, Spectrum_kernel, substring_kernel
 
 
 class KernelRidgeRegressor(BaseEstimator, ClassifierMixin):
@@ -68,7 +68,7 @@ class KernelRidgeRegressor(BaseEstimator, ClassifierMixin):
 
 class KernelSVM(BaseEstimator, ClassifierMixin):
 
-    def __init__(self, lamb=1., sigma=1., k = 3, kernel='gaussian'):
+    def __init__(self, lamb=1., sigma=1., k = 3, kernel=None, precomputed_kernel=None):
         """
         This class implements methods for fitting and predicting with a KernelRidgeRegressor used for classification
         (by thresholding the value regressed). Any kernel can be used.
@@ -81,10 +81,16 @@ class KernelSVM(BaseEstimator, ClassifierMixin):
         self.sigma = sigma
         self.k = k
         self.kernel = kernel
-        if self.kernel == 'gaussian':
+        self.params = {'lamb': lamb, 'sig': sigma, 'k': k}
+        if precomputed_kernel is not None:
+            self.kernel_ = precomputed_kernel
+        elif self.kernel == 'gaussian':
             self.kernel_ = partial(Gaussian_kernel, sig=sigma)
         elif self.kernel == 'spectrum':
             self.kernel_ = partial(Spectrum_kernel, k=k)
+        elif self.kernel == 'substring':
+            warnings.warn("Computing the subtring kernel on the fly is computationnally heavy, you should probably precompute it.")
+            self.kernel_ = partial(substring_kernel, k=k)
         else:
             raise NotImplementedError(f"Kernel {self.kernel} is not implemented yet")
 
@@ -98,12 +104,15 @@ class KernelSVM(BaseEstimator, ClassifierMixin):
         N_tr = X.shape[0]
         self.X_tr_ = np.copy(X)
 
-        if self.kernel == 'gaussian':
-            K = self.kernel_(X, X, sig=self.sigma)
-        elif self.kernel == 'spectrum':
-            K = self.kernel_(X, X, k=self.k[0])
-            for i in range(len(self.k)-1):
-                K+=self.kernel_(X, X, k=self.k[i+1])
+        # if self.kernel == 'gaussian':
+        #     K = self.kernel_(X, X, sig=self.sigma)
+        # elif self.kernel == 'spectrum':
+        #     K = self.kernel_(X, X, k=self.k[0])
+        #     for i in range(len(self.k)-1):
+        #         K+=self.kernel_(X, X, k=self.k[i+1])
+
+        K = self.kernel_(X, X, **self.params)
+
         # Define QP and solve it with cvxpy
         alpha = cp.Variable(N_tr)
         objective = cp.Maximize(2*alpha.T@y - cp.quad_form(alpha, K))
@@ -125,13 +134,13 @@ class KernelSVM(BaseEstimator, ClassifierMixin):
          - the predicted class for the associated y given the
         Linear Regression parameters
         """
-        if self.kernel == 'gaussian':
-            K_tr_te = self.kernel_(self.X_tr_, X, sig=self.sigma)
-        elif self.kernel == 'spectrum':
-            K_tr_te = self.kernel_(self.X_tr_, X, k=self.k[0])
-            for i in range(len(self.k)-1):
-                K_tr_te+=self.kernel_(self.X_tr_, X, k=self.k[i+1])
-
+        # if self.kernel == 'gaussian':
+        #     K_tr_te = self.kernel_(self.X_tr_, X, sig=self.sigma)
+        # elif self.kernel == 'spectrum':
+        #     K_tr_te = self.kernel_(self.X_tr_, X, k=self.k[0])
+        #     for i in range(len(self.k)-1):
+        #         K_tr_te+=self.kernel_(self.X_tr_, X, k=self.k[i+1])
+        K_tr_te = self.kernel_(self.X_tr_, X, **self.params)
 
         return 2 * (self.alpha_.T@K_tr_te > 0).reshape(-1, ).astype("int") - 1
 

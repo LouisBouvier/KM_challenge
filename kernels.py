@@ -12,7 +12,7 @@ from numba import jit
 from scipy.spatial import distance_matrix
 
 ### ================ Gaussian Kernel =================== ###
-def Gaussian_kernel(X1, X2, sig):
+def Gaussian_kernel(X1, X2, sig, **args):
     """inputs:
     - X1 (size N1xd): a set of points
     - X2 (size N2xd): another one
@@ -24,12 +24,12 @@ def Gaussian_kernel(X1, X2, sig):
 
 ### ================ Spectrum Kernel =================== ###
 
-def spectrum(x,k):
+def spectrum(x, k):
     l = len(x)
     spectrum_x = np.array([x[i:(i + k)] for i in range(l - k + 1)])
     return np.array(spectrum_x)
 
-def Spectrum_kernel(X1, X2, k):
+def Spectrum_kernel(X1, X2, k, **args):
     """inputs:
     - X1 (size N1xd): a set of sequences
     - X2 (size N2xd): another one
@@ -44,8 +44,19 @@ def Spectrum_kernel(X1, X2, k):
     phi_spect_X1 = np.array([[np.sum(spectrum(x,k)==u) for u in A_k] for x in X1])
     phi_spect_X2 = np.array([[np.sum(spectrum(x,k)==u) for u in A_k] for x in X2])
 
+    # phi_spect_X1 = np.zeros((len(X1), len(A_k)))
+    # phi_spect_X2 = np.zeros((len(X2), len(A_k)))
+    # for i, x in enumerate(X1):
+    #     for j in range(len(x) - k + 1):
+    #         print(A_k.index(x[j:(j + k)]))
+    #         phi_spect_X1[j][A_k.index(x[j:(j + k)])] += 1
+    # for i, x in enumerate(X2):
+    #     for j in range(len(x) - k + 1):
+    #         phi_spect_X2[i][A_k.index(x[j:(j + k)])] += 1
+
+
     K_s = phi_spect_X1 @ phi_spect_X2.T
-    K_s = K_s + np.eye(K_s.shape[0], K_s.shape[1])*pow(10,-12)
+    K_s = K_s + np.eye(K_s.shape[0], K_s.shape[1]) * pow(10,-12)
     return K_s
 
 ### ================ Substring Kernel =================== ###
@@ -69,33 +80,35 @@ def substring_similarity(seq_1, seq_2, k, lambd):
                 b = seq_2[i_str_2]
 
                 # If min < l, then the matrix already has zeros in the right place : we can continue
-                if min(i_str_1, i_str_2) >= l:
+                if min(i_str_1, i_str_2) >= l-1:
 
-                    # Computation of B
-                    B_temp[l][i_str_1, i_str_2] = lambd * B_temp[l][i_str_1-1, i_str_2] \
-                                                + lambd * B_temp[l][i_str_1, i_str_2-1] \
-                                                - lambd ** 2 * B_temp[l][i_str_1-1, i_str_2-1] \
-                                                + lambd ** 2 * int(a == b) * B_temp[l-1][i_str_1-1, i_str_2-1]
+                    if i_str_1 == 0 and i_str_2 == 0:
+                        continue
 
-                    # This corresponds to the sum in the computation of K
-                    # !!!!! This one is probably wrong !!!!!
-#                     K_sum_1 = 0
-#                     for j_prime in range(i_str_2+1):
-#                         if seq_2[j_prime] == a:
-#                             K_sum_1 += B_temp[l-1][i_str_1-1, j_prime-1]
+                    if i_str_2 == 0:
+                        # Computation of B
+                        B_temp[l][i_str_1, i_str_2] = lambd * B_temp[l][i_str_1-1, i_str_2]
+                        K_temp[l][i_str_1, i_str_2] = K_temp[l][i_str_1-1, i_str_2]
 
-#                     # Computation of K
-#                     K_temp[l][i_str_1, i_str_2] = K_temp[l][i_str_1-1, i_str_2] + lambd ** 2 * K_sum_1
+                    elif i_str_1 == 0:
+                        B_temp[l][i_str_1, i_str_2] = lambd * B_temp[l][i_str_1, i_str_2-1]
+                        K_temp[l][i_str_1, i_str_2] = K_temp[l][i_str_1, i_str_2-1]
 
-                    # This one is wrong too, but less
-                    K_temp[l][i_str_1, i_str_2] = K_temp[l][i_str_1-1, i_str_2] \
-                                                + K_temp[l][i_str_1, i_str_2-1] \
-                                                - K_temp[l][i_str_1-1, i_str_2-1] \
-                                                + lambd ** 2 * int(a == b) * B_temp[l-1][i_str_1-1, i_str_2-1]
+                    else:
+                        B_temp[l][i_str_1, i_str_2] = lambd * B_temp[l][i_str_1-1, i_str_2] \
+                                                    + lambd * B_temp[l][i_str_1, i_str_2-1] \
+                                                    - lambd ** 2 * B_temp[l][i_str_1-1, i_str_2-1] \
+                                                    + lambd ** 2 * int(a == b) * B_temp[l-1][i_str_1-1, i_str_2-1]
+
+                        # This corresponds to the sum in the computation of K
+                        K_temp[l][i_str_1, i_str_2] = K_temp[l][i_str_1-1, i_str_2] \
+                                                    + K_temp[l][i_str_1, i_str_2-1] \
+                                                    - K_temp[l][i_str_1-1, i_str_2-1] \
+                                                    + lambd ** 2 * int(a == b) * B_temp[l-1][i_str_1-1, i_str_2-1]
 
     return K_temp[k][-1, -1]
 
-def substring_kernel(X1, X2, k, lambd):
+def substring_kernel(X1, X2, k, lambd, **args):
     """
 
     """
@@ -165,7 +178,7 @@ def Fisher_kernel(X1,X2,X_HMM,k):
     spectrum_matrix_X2 = spectrum_matrix(X2,k)
 
     K = np.zeros((X1.shape[0],X2.shape[0]))
-    
+
     for i in range(X1.shape[0]):
       for j in range(X2.shape[0]):
           spect_x1 = spectrum_matrix_X1[i]
