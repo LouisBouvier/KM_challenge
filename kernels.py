@@ -37,22 +37,24 @@ def Spectrum_kernel(X1, X2, k, **args):
     ouput:
     - the associated (N1xN2) Spectrum kernel
     """
-    # substrings: all possible combinations of A,T,G,C of length k
-    A_k = [''.join(s) for s in product(["A", "T", "G", "C"], repeat=k)]
+    ### ------ OLD COMPUTATION OF SPECTRUM KERNEL ------
+    # # substrings: all possible combinations of A,T,G,C of length k
+    # A_k = [''.join(s) for s in product(["A", "T", "G", "C"], repeat=k)]
+    #
+    # # nb of occurances of the elements of A_k in the k-spectrum of X1 (resp. X2)
+    # phi_spect_X1 = np.array([[np.sum(spectrum(x,k)==u) for u in A_k] for x in X1])
+    # phi_spect_X2 = np.array([[np.sum(spectrum(x,k)==u) for u in A_k] for x in X2])
+    ### ------------------ END ---------------------
 
-    # nb of occurances of the elements of A_k in the k-spectrum of X1 (resp. X2)
-    phi_spect_X1 = np.array([[np.sum(spectrum(x,k)==u) for u in A_k] for x in X1])
-    phi_spect_X2 = np.array([[np.sum(spectrum(x,k)==u) for u in A_k] for x in X2])
-
-    # phi_spect_X1 = np.zeros((len(X1), len(A_k)))
-    # phi_spect_X2 = np.zeros((len(X2), len(A_k)))
-    # for i, x in enumerate(X1):
-    #     for j in range(len(x) - k + 1):
-    #         print(A_k.index(x[j:(j + k)]))
-    #         phi_spect_X1[j][A_k.index(x[j:(j + k)])] += 1
-    # for i, x in enumerate(X2):
-    #     for j in range(len(x) - k + 1):
-    #         phi_spect_X2[i][A_k.index(x[j:(j + k)])] += 1
+    A_k = {''.join(s): i for i, s in enumerate(product(["A", "T", "G", "C"], repeat=k))}
+    phi_spect_X1 = np.zeros((len(X1), len(A_k)))
+    phi_spect_X2 = np.zeros((len(X2), len(A_k)))
+    for i, x in enumerate(X1):
+        for j in range(len(x) - k + 1):
+            phi_spect_X1[i][A_k[x[j:(j + k)]]] += 1
+    for i, x in enumerate(X2):
+        for j in range(len(x) - k + 1):
+            phi_spect_X2[i][A_k[x[j:(j + k)]]] += 1
 
 
     K_s = phi_spect_X1 @ phi_spect_X2.T
