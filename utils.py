@@ -89,7 +89,7 @@ def run_model(model_name,
     """
     dim = 100
     Nb_samples = 2000
-    default_params = {'lamb': 0.5, 'sigma': 1.2, 'k': [4, 5, 6]}
+    default_params = {'lamb': 15, 'sigma': 1.2, 'k': [4, 5, 6]}
 
     all_y_eval = []
 
