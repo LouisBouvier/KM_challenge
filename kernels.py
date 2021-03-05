@@ -11,6 +11,8 @@ from itertools import product
 from numba import jit
 from scipy.spatial import distance_matrix
 
+ALPHABET = ["A", "T", "G", "C"]
+
 ### ================ Gaussian Kernel =================== ###
 def Gaussian_kernel(X1, X2, sig, **args):
     """inputs:
@@ -191,3 +193,118 @@ def Fisher_kernel(X1,X2,X_HMM,k):
           phi_x2 = fisher_score(probs_x2)
           K[i][j] = phi_x1.T @ phi_x2
     return K
+
+### ================ Mismatch kernel =================== ###
+
+class Node(object):
+    def __init__(self, parent, letter):
+        self.parent = parent
+        self.letter = letter
+        self.sequence = None
+        self.pointers = {}
+
+    def get_sequence(self):
+        return self.sequence
+
+    def get_parent(self):
+        return self.parent
+
+    def get_pointers(self):
+        return self.pointers
+
+    def set_sequence(self):
+        if self.parent:
+            self.sequence = self.parent.get_sequence()+self.letter if self.parent.get_sequence() else self.letter
+
+    def set_pointers(self, dataset, depth, max_mismatch):
+        Pointers = {}
+        if self.get_parent() is not None:
+            parent_Pointers = self.get_parent().get_pointers()
+            for pointer, mismatch in parent_Pointers.items():
+                if dataset[pointer][depth]!=self.letter:
+                    new_mismatch = mismatch+1
+                    if new_mismatch <= max_mismatch:
+                        Pointers[pointer] = new_mismatch
+                else:
+                    Pointers[pointer] = mismatch
+        else:
+            for i in range(len(dataset)):
+                Pointers[i] = 0
+        self.pointers = Pointers
+
+
+class Tree(Node):
+    def __init__(self,k,m):
+        self.maxdepth = k
+        self.max_nb_mismatches = m
+        # create the strings of length k with the alphabet
+        self.A_k = {''.join(s): i for i,s in enumerate(product(ALPHABET, repeat=k))}
+        # create the root node with no letter and no parent
+        root = Node(parent=None, letter=None)
+        root.set_pointers(list(self.A_k.keys()), 0, self.max_nb_mismatches)
+        # create a dictionnary of nodes: width first
+        self.Nodes = {0: [root]}
+        for d in range(1,self.maxdepth+1):
+            self.Nodes[d] = []
+        for count in range(self.maxdepth):
+            for parent_ in self.Nodes[count]:
+                for charact in ALPHABET:
+                    child = Node(parent_,charact)
+                    child.set_sequence()
+                    child.set_pointers(list(self.A_k.keys()), count, self.max_nb_mismatches)
+                    self.Nodes[count+1].append(child)
+
+    def get_Nodes(self):
+      return self.Nodes
+
+    def build_kernel(self, X1, X2):
+        sub_strings1 = np.zeros((X1.shape[0], len(X1[0]) - self.maxdepth + 1))
+        for i, x in enumerate(X1):
+            for j in range(len(x)-self.maxdepth+1):
+                sub_strings1[i, j] = self.A_k[x[j:j+self.maxdepth]]
+
+        sub_strings2 = np.zeros((X2.shape[0], len(X2[0]) - self.maxdepth + 1))
+        for i, x in enumerate(X2):
+            for j in range(len(x)-self.maxdepth+1):
+                sub_strings2[i, j] = self.A_k[x[j:j+self.maxdepth]]
+
+        K = np.zeros((X1.shape[0], X2.shape[0]))
+        for leaf in self.get_Nodes()[self.maxdepth]:
+            leaf_pointed = set(leaf.get_pointers().keys())
+            K += get_occurences(leaf_pointed, sub_strings1, sub_strings2)
+        return K
+
+@jit(nopython=True)
+def get_occurences(leaf_pointed, sub_strings1, sub_strings2):
+    occurences_1 = np.zeros((sub_strings1.shape[0], sub_strings1.shape[1]))
+    occurences_2 = np.zeros((sub_strings2.shape[0], sub_strings2.shape[1]))
+    for i, line in enumerate(sub_strings1):
+        for j, el in enumerate(line):
+            occurences_1[i,j] = int(el in leaf_pointed)
+    for i, line in enumerate(sub_strings2):
+        for j, el in enumerate(line):
+            occurences_2[i,j] = int(el in leaf_pointed)
+
+    #occurences_1 = np.array([[1 if el in leaf_pointed else 0 for el in sub_strings1[k]] for k in range(len(sub_strings1))])
+    #occurences_2 = np.array([[1 if el in leaf_pointed else 0 for el in sub_strings2[k]] for k in range(len(sub_strings2))])
+    occurences_1 = np.sum(occurences_1, axis=1)
+    occurences_2 = np.sum(occurences_2, axis=1)
+    #occurences_1 = np.isin(sub_strings1, leaf_pointed).sum(axis=1)
+    #occurences_2 = np.isin(sub_strings2, leaf_pointed).sum(axis=1)
+    occurences_1 = occurences_1.reshape(-1,1)
+    occurences_2 = occurences_2.reshape(-1,1)
+    return occurences_1@occurences_2.T
+
+
+def Mismatch_kernel(X1, X2, k, m):
+    """inputs:
+    - X1 (size N1xd): a set of strings
+    - X2 (size N2xd): another one
+    - k (integer): the length of the substrings considered
+    - m (integer): the order of mismatch accepted
+    ouput:
+    - the associated (N1)x(N2) mismatch kernel
+    """
+    Test_tree = Tree(k=k, m=m)
+    kernel = Test_tree.build_kernel(X1,X2)
+    return kernel
