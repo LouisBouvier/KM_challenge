@@ -173,7 +173,7 @@ def fisher_score(probs_x):
       phi.append(1/(p+eps))
     return np.array(phi).reshape(-1,1)
 
-def Fisher_kernel(X1,X2,X_HMM,k):
+def Fisher_kernel(X1,X2,X_HMM,k, **args):
     chars = np.array([''.join(s) for s in product(["A", "T", "G", "C"], repeat=k)])
     spectrum_matrix_HMM = spectrum_matrix(X_HMM,k)
     em_probs = emission_probs(spectrum_matrix_HMM,chars)
@@ -182,17 +182,18 @@ def Fisher_kernel(X1,X2,X_HMM,k):
     spectrum_matrix_X2 = spectrum_matrix(X2,k)
 
     K = np.zeros((X1.shape[0],X2.shape[0]))
-
+    norm = 0
     for i in range(X1.shape[0]):
-      for j in range(X2.shape[0]):
-          spect_x1 = spectrum_matrix_X1[i]
-          spect_x2 = spectrum_matrix_X2[j]
-          probs_x1 = probs_x(spect_x1,em_probs,chars)
-          probs_x2 = probs_x(spect_x2,em_probs,chars)
-          phi_x1 = fisher_score(probs_x1)
-          phi_x2 = fisher_score(probs_x2)
-          K[i][j] = phi_x1.T @ phi_x2
-    return K
+        spect_x1 = spectrum_matrix_X1[i]
+        probs_x1 = probs_x(spect_x1,em_probs,chars)
+        phi_x1 = fisher_score(probs_x1)
+        norm += phi_x1.T @ phi_x1/X1.shape[0]
+        for j in range(X2.shape[0]):
+            spect_x2 = spectrum_matrix_X2[j]
+            probs_x2 = probs_x(spect_x2,em_probs,chars)
+            phi_x2 = fisher_score(probs_x2)
+            K[i][j] = phi_x1.T @ phi_x2
+    return K/norm
 
 ### ================ Mismatch kernel =================== ###
 

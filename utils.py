@@ -28,7 +28,7 @@ def write_csv(ids, labels, filename):
     df.to_csv(filename, sep=',', index=False)
 
 
-def init_model(model_name, default_params, kernel=None, precomputed_kernel=None, use_grid_search=False):
+def init_model(model_name, default_params, X_HMM=None, kernel=None, precomputed_kernel=None, use_grid_search=False):
     """
     Initializes a model depending on the parameters specified.
     """
@@ -56,6 +56,9 @@ def init_model(model_name, default_params, kernel=None, precomputed_kernel=None,
         elif kernel == 'substring':
             params = None
             model = KernelSVM(lamb=default_params['lamb'], k=default_params['k'][0], kernel='substring')
+        elif kernel == 'fisher':
+            params = None
+            model = KernelSVM(lamb=default_params['lamb'], k=default_params['k'][0], X_HMM = X_HMM, kernel='fisher')
     else:
         print('model not defined')
 
@@ -72,7 +75,8 @@ def run_model(model_name,
               kernel_savefiles=None,
               K=None,
               sequence = False,
-              use_grid_search = False):
+              use_grid_search = False,
+              default_params = {'lamb': 15, 'sigma': 1.2, 'k': [4, 5, 6]}):
     """
     inputs:
         - model_name (str): name of the model used for classification
@@ -89,7 +93,7 @@ def run_model(model_name,
     """
     dim = 100
     Nb_samples = 2000
-    default_params = {'lamb': 15, 'sigma': 1.2, 'k': [4, 5, 6]}
+    # default_params = {'lamb': 15, 'sigma': 1.2, 'k': [4, 5, 6]}
 
     all_y_eval = []
 

@@ -9,7 +9,7 @@ import cvxpy as cp
 from functools import partial
 from sklearn.base import BaseEstimator, ClassifierMixin
 
-from kernels import Gaussian_kernel, Spectrum_kernel, substring_kernel
+from kernels import Gaussian_kernel, Spectrum_kernel, substring_kernel, Fisher_kernel
 
 
 class KernelRidgeRegressor(BaseEstimator, ClassifierMixin):
@@ -68,7 +68,7 @@ class KernelRidgeRegressor(BaseEstimator, ClassifierMixin):
 
 class KernelSVM(BaseEstimator, ClassifierMixin):
 
-    def __init__(self, lamb=1., sigma=1., k = 3, kernel=None, precomputed_kernel=None):
+    def __init__(self, lamb=1., sigma=1., k = 3, X_HMM= None, kernel=None, precomputed_kernel=None):
         """
         This class implements methods for fitting and predicting with a KernelRidgeRegressor used for classification
         (by thresholding the value regressed). Any kernel can be used.
@@ -82,6 +82,7 @@ class KernelSVM(BaseEstimator, ClassifierMixin):
         self.k = k
         self.kernel = kernel
         self.params = {'lamb': lamb, 'sig': sigma, 'k': k}
+        self.X_HMM = X_HMM
         if precomputed_kernel is not None:
             self.kernel_ = precomputed_kernel
         elif self.kernel == 'gaussian':
@@ -91,6 +92,8 @@ class KernelSVM(BaseEstimator, ClassifierMixin):
         elif self.kernel == 'substring':
             warnings.warn("Computing the subtring kernel on the fly is computationnally heavy, you should probably precompute it.")
             self.kernel_ = partial(substring_kernel, k=k)
+        elif self.kernel == 'fisher':
+            self.kernel_ = partial(Fisher_kernel, k=k)
         else:
             raise NotImplementedError(f"Kernel {self.kernel} is not implemented yet")
 
@@ -110,8 +113,11 @@ class KernelSVM(BaseEstimator, ClassifierMixin):
         #     K = self.kernel_(X, X, k=self.k[0])
         #     for i in range(len(self.k)-1):
         #         K+=self.kernel_(X, X, k=self.k[i+1])
-
-        K = self.kernel_(X, X, **self.params)
+        if self.kernel =='fisher':
+            K = self.kernel_(X, X, self.X_HMM, **self.params)
+            K+= 1e-8
+        else:
+            K = self.kernel_(X, X, **self.params)
 
         # Define QP and solve it with cvxpy
         alpha = cp.Variable(N_tr)
@@ -140,7 +146,11 @@ class KernelSVM(BaseEstimator, ClassifierMixin):
         #     K_tr_te = self.kernel_(self.X_tr_, X, k=self.k[0])
         #     for i in range(len(self.k)-1):
         #         K_tr_te+=self.kernel_(self.X_tr_, X, k=self.k[i+1])
-        K_tr_te = self.kernel_(self.X_tr_, X, **self.params)
+        if self.kernel == 'fisher':
+            K_tr_te = self.kernel_(self.X_tr_, X, self.X_HMM, **self.params)
+            K_tr_te+= 1e-8
+        else:
+            K_tr_te = self.kernel_(self.X_tr_, X, **self.params)
 
         return 2 * (self.alpha_.T@K_tr_te > 0).reshape(-1, ).astype("int") - 1
 
