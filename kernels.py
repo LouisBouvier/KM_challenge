@@ -309,3 +309,47 @@ def Mismatch_kernel(X1, X2, k, m):
     Test_tree = Tree(k=k, m=m)
     kernel = Test_tree.build_kernel(X1,X2)
     return kernel
+
+
+## ===================== TF-IDF =====================
+def compute_TF(x, k, A_k):
+    tf = np.zeros(len(A_k))
+    for i in range(len(x) - k + 1):
+        tf[A_k[x[i:i+k]]] += 1
+    return tf
+
+def compute_IDF(tf):
+    res = np.zeros(tf.shape[1])
+    term_freq = np.sum(tf > 0, axis=0)
+    res[term_freq > 0] = np.log(tf.shape[0] / term_freq[term_freq > 0])
+    return res.reshape(1, tf.shape[1])
+
+def compute_TFIDF(X, k=3, idf=None, bool_return_idf=False):
+    """
+    Computes TFIDF representations of a list of strings. The strings are biological sequences.
+    Since we don't have access to words for biological sequences, the words will be patterns of k characters
+    (e.g. ATG or TTC if k=3)
+
+    Inputs:
+        - X (array of strings): sequences to encode.
+        - k (int): size of the "words".
+        - idf (array): a precomputed IDF, used for the testing set.
+        - bool_return_idf (bool): whether to return the computed IDF array.
+    Output:
+        - (array): the TF-IDF representations for each of the sequences in X.
+        - (array, optional): the IDF.
+
+    """
+    A_k = {''.join(s): i for i, s in enumerate(product(["A", "T", "G", "C"], repeat=k))}
+
+    tf = np.zeros((X.shape[0], len(A_k)))
+    for i, x in enumerate(X):
+        tf[i] = compute_TF(x, k, A_k)
+
+    if idf is None:
+        idf = compute_IDF(tf)
+
+    if bool_return_idf:
+        return tf * idf, idf
+    else:
+        return tf * idf

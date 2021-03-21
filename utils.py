@@ -9,11 +9,11 @@ import cvxpy as cp
 import warnings
 import time
 from numba import jit
-
+from functools import partial
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 from linear_models import LogisticRegressor, RidgeRegressor
-from kernel_models import KernelRidgeRegressor, KernelSVM
+from kernel_models import KernelRidgeRegressor, KernelSVM, KernelMKL
 
 
 def write_csv(ids, labels, filename):
@@ -76,7 +76,9 @@ def run_model(model_name,
               K=None,
               sequence = False,
               use_grid_search = False,
-              default_params = {'lamb': 15, 'sigma': 1.2, 'k': [4, 5, 6]}):
+              default_params = {'lamb': 15, 'sigma': 1.2, 'k': [4, 5, 6]},
+              use_mkl=False,
+              mkl_iterations=1):
     """
     inputs:
         - model_name (str): name of the model used for classification
@@ -141,23 +143,37 @@ def run_model(model_name,
                                                          kernel_filename_train=kernel_savefiles[name]['train'],
                                                          kernel_filename_eval=kernel_savefiles[name]['eval'])
 
-        elif sequence and K is not None:
+        elif not use_mkl and sequence and K is not None:
             precomputed_kernel = load_precomputed_kernel(df, df_eval, K_tr=K[name]['train'], K_ev=K[name]['eval'])
 
-        model = init_model(model_name,
-                           default_params,
-                           kernel=kernel,
-                           precomputed_kernel=precomputed_kernel,
-                           use_grid_search=use_grid_search)
+        if use_mkl:
+            get_precomputed_kernels = partial(load_precomputed_kernel, df_train=df, df_eval=df_eval)
 
-        # Fitting
-        model.fit(X_tr, y_tr)
+            model = KernelMKL(lamb=default_params["lamb"],
+                              kernels=K[name],
+                              get_precomputed_kernels=get_precomputed_kernels,
+                              step=default_params["step"],
+                              n_iterations=mkl_iterations)
+            # Fitting
+            model.fit(X_tr, y_tr, tr_indices)
+
+            print(f"Optimal weights for kernels: {model.eta}")
+
+        else:
+            model = init_model(model_name,
+                               default_params,
+                               kernel=kernel,
+                               precomputed_kernel=precomputed_kernel,
+                               use_grid_search=use_grid_search)
+
+            # Fitting
+            model.fit(X_tr, y_tr)
 
         if use_grid_search:
             print(model.best_params_)
 
         print(f"Accuracy on train set {name}: {model.score(X_tr, y_tr):.2f}")
-        print(f"Accuracy on test set {name} : {model.score(X_te, y_te):.2f}")
+        print(f"Accuracy on test set {name} : {model.score(X_te, y_te):.2f}\n")
 
         # Prediction on the new set
         y_eval = model.predict(X_eval)
@@ -170,8 +186,7 @@ def run_model(model_name,
 
 def load_precomputed_kernel(df_train, df_eval,
                             kernel_filename_train=None, kernel_filename_eval=None,
-                            K_tr=None, K_ev=None,
-                            normalize=False, make_it_positive=False):
+                            K_tr=None, K_ev=None):
     """
     Create a function that will compute the kernel between datapoints by finding the correct indices and using a precomputed kernel to return the solution.
 
@@ -205,13 +220,6 @@ def load_precomputed_kernel(df_train, df_eval,
             # Extract submatrix using correct indices
             K = K_ev[np.ix_(idx1, idx2)]
 
-        if make_it_positive: # This is to have a positive matrix 'à la bled'
-            K += 1e-8
-        # Divide all elements by row and column values. Not encouraged.
-        if normalize:
-            diag = np.copy(np.diag(K))
-            K = K / diag[:, None]
-            K = K / diag
         return K
 
 

@@ -163,3 +163,93 @@ class KernelSVM(BaseEstimator, ClassifierMixin):
         y_pred = self.predict(X)
 
         return np.sum(y_pred == y)/y.shape[0]
+
+
+def simplex_projection(eta):
+    # See https://lcondat.github.io/publis/Condat_simplexproj.pdf, Algorithm 1 for an explanation of this function
+    u = np.sort(eta)[::-1]
+    tmp = (np.cumsum(u) - 1) / (np.arange(len(eta)) + 1)
+    nonzero = np.nonzero(tmp < u)[0]
+    if len(nonzero) > 0:
+        K = nonzero[-1]
+    else:
+        K = -1
+    tau = tmp[K]
+    return np.maximum(eta - tau, 0)
+
+
+class KernelMKL(object):
+
+    def __init__(self, lamb, kernels, get_precomputed_kernels, step, n_iterations=1):
+        """
+        inputs:
+            - lamb: lambda parameter for the SVM
+            - kernels: dict of list of kernels to use for training and testing. This datastructure should have the following format:
+                        - "train"
+                        | -- (array) kernel 1
+                        | -- (array) kernel 2
+                        | -- ...
+                        - "eval"
+                        | -- (array) kernel 1
+                        | -- (array) kernel 2
+                        | -- ...
+            - get_precomputed_kernels: function that takes in arguments `K_tr` and `K_ev` and returns a precomputed_kernel.
+            - step: gradient descent step
+            - n_iterations: number of iterations for the projected gradient algorithm.
+        """
+        self.lamb = lamb
+        self.kernels = kernels
+        self.get_precomputed_kernels = get_precomputed_kernels
+        self.step = step
+        self.n_iterations = n_iterations
+
+        assert len(kernels["train"]) == len(kernels["eval"])
+        self.n_kernels = len(kernels["train"])
+        self.eta = np.ones(self.n_kernels) / self.n_kernels
+
+    def fit(self, X, y, tr_idx):
+
+        for _ in range(self.n_iterations):
+            # compute weighted sum of kernels
+            K_tr = sum([self.eta[i] * self.kernels["train"][i] for i in range(self.n_kernels)])
+
+            precomputed_kernel = self.get_precomputed_kernels(K_tr=K_tr)
+
+            # compute your objective function by fitting a SVM
+            model = KernelSVM(lamb=self.lamb, precomputed_kernel=precomputed_kernel)
+            model.fit(X, y)
+            gamma = model.alpha_ / y
+
+            # gradient descent step
+            grad = np.zeros(self.n_kernels)
+            for i in range(self.n_kernels):
+                grad[i] = - self.lamb * gamma.T @ self.kernels["train"][i][np.ix_(tr_idx, tr_idx)] @ gamma
+            self.eta -= self.step * grad
+
+            # projection of the new eta to the simplex
+            self.eta = simplex_projection(self.eta)
+
+        # fit your model with your final parameters. We also load the evaluation kernel so that we can run directly functions from the SVM class
+        K_tr = sum([self.eta[i] * self.kernels["train"][i] for i in range(self.n_kernels)])
+        K_ev = sum([self.eta[i] * self.kernels["eval"][i] for i in range(self.n_kernels)])
+        precomputed_kernel = self.get_precomputed_kernels(K_tr=K_tr, K_ev=K_ev)
+        self.model = KernelSVM(lamb=self.lamb, precomputed_kernel=precomputed_kernel)
+        self.model.fit(X, y)
+
+    def predict(self, X):
+        """
+        inputs:
+        - X (size N_texd): the points in R^d we want to classify
+        output:
+         - the predicted class for the associated y given the
+        Linear Regression parameters
+        """
+        return self.model.predict(X)
+
+    def score(self, X, y):
+        """
+        inputs:
+        - X (size N_texd): the points in R^d we want to classify
+        - y (size N_tex1): the labels of the points
+        """
+        return self.model.score(X, y)
