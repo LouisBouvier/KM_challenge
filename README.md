@@ -16,6 +16,7 @@ We have implemented the following models:
   - Mismatch kernel on raw sequences
   - Substring kernel on raw sequences
   - Fisher kernel on raw sequences
+  - TF-IDF extraction
   - Sum of kernels
   
   
