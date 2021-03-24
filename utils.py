@@ -78,7 +78,8 @@ def run_model(model_name,
               use_grid_search = False,
               default_params = {'lamb': 15, 'sigma': 1.2, 'k': [4, 5, 6]},
               use_mkl=False,
-              mkl_iterations=1):
+              mkl_iterations=1,
+              seed = 42):
     """
     inputs:
         - model_name (str): name of the model used for classification
@@ -99,7 +100,7 @@ def run_model(model_name,
 
     all_y_eval = []
 
-    np.random.seed(1)
+    np.random.seed(seed)
     for name in [0, 1, 2]:
         # Load training / testing sets
         X = pd.read_csv(f'{data_folder}/Xtr{name}_mat100.csv', sep = ' ', index_col=False, header=None).to_numpy()
