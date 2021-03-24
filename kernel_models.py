@@ -218,12 +218,11 @@ class KernelMKL(object):
             # compute your objective function by fitting a SVM
             model = KernelSVM(lamb=self.lamb, precomputed_kernel=precomputed_kernel)
             model.fit(X, y)
-            gamma = model.alpha_ / y
 
             # gradient descent step
             grad = np.zeros(self.n_kernels)
             for i in range(self.n_kernels):
-                grad[i] = - self.lamb * gamma.T @ self.kernels["train"][i][np.ix_(tr_idx, tr_idx)] @ gamma
+                grad[i] = 1/2 * model.alpha_.T@self.kernels["train"][i][np.ix_(tr_idx, tr_idx)]@model.alpha_ 
             self.eta -= self.step * grad
 
             # projection of the new eta to the simplex
