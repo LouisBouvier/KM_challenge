@@ -58,7 +58,6 @@ def Spectrum_kernel(X1, X2, k, **args):
         for j in range(len(x) - k + 1):
             phi_spect_X2[i][A_k[x[j:(j + k)]]] += 1
 
-
     K_s = phi_spect_X1 @ phi_spect_X2.T
     K_s = K_s + np.eye(K_s.shape[0], K_s.shape[1]) * pow(10,-12)
     return K_s
@@ -353,3 +352,10 @@ def compute_TFIDF(X, k=3, idf=None, bool_return_idf=False):
         return tf * idf, idf
     else:
         return tf * idf
+
+def tfidf_kernel(X1, X2, k=3):
+
+    phi1, idf = compute_TFIDF(X1, k=k, bool_return_idf=True)
+    phi2 = compute_TFIDF(X2, k=k, idf=idf)
+
+    return phi1 @ phi2.T
