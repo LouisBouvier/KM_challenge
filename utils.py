@@ -99,6 +99,7 @@ def run_model(model_name,
     # default_params = {'lamb': 15, 'sigma': 1.2, 'k': [4, 5, 6]}
 
     all_y_eval = []
+    accuracies = {}
 
     np.random.seed(seed)
     for name in [0, 1, 2]:
@@ -174,15 +175,16 @@ def run_model(model_name,
             print(model.best_params_)
 
         print(f"Accuracy on train set {name}: {model.score(X_tr, y_tr):.2f}")
+        accuracies["train_{}".format(name)] = model.score(X_tr, y_tr)
         print(f"Accuracy on test set {name} : {model.score(X_te, y_te):.2f}\n")
-
+        accuracies["test_{}".format(name)] = model.score(X_te, y_te)
         # Prediction on the new set
         y_eval = model.predict(X_eval)
         all_y_eval.append(y_eval)
 
     all_y_eval = np.hstack(all_y_eval).reshape(-1)
 
-    return all_y_eval
+    return all_y_eval, accuracies
 
 
 def load_precomputed_kernel(df_train, df_eval,
