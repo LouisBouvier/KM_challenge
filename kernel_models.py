@@ -7,7 +7,7 @@ Kernel Models:
 import numpy as np
 import cvxpy as cp
 from functools import partial
-from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.base import BaseEstimator, ClassifierMixin # Used only for easy Grid Search
 
 from kernels import Gaussian_kernel, Spectrum_kernel, substring_kernel, Fisher_kernel
 

@@ -139,7 +139,6 @@ def run_model(model_name,
         assert X_tr.shape[0] + X_te.shape[0] == X.shape[0]
         assert y_tr.shape[0] + y_te.shape[0] == y.shape[0]
 
-
         if sequence and kernel_savefiles is not None:
             precomputed_kernel = load_precomputed_kernel(df, df_eval,
                                                          kernel_filename_train=kernel_savefiles[name]['train'],
@@ -147,6 +146,8 @@ def run_model(model_name,
 
         elif not use_mkl and sequence and K is not None:
             precomputed_kernel = load_precomputed_kernel(df, df_eval, K_tr=K[name]['train'], K_ev=K[name]['eval'])
+        else:
+            precomputed_kernel = None
 
         if use_mkl:
             get_precomputed_kernels = partial(load_precomputed_kernel, df_train=df, df_eval=df_eval)
