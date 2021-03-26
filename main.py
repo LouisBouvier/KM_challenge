@@ -44,7 +44,7 @@ if __name__ == '__main__':
 
         kernel_params = [(7, 3), (8, 3)]
 
-        K = [{"train": [], "eval": []} for _ in range(len(kernel_params))]
+        K = [{"train": [], "eval": []} for _ in range(3)]
 
         print("Computing kernels...")
         for name in [0, 1, 2]:
